@@ -9,7 +9,8 @@ bl_info = {
     "category" : "Scene",
 }
 
-import bpy
+import bpy, pickle
+from bpy.app.handlers import persistent
 classes = []
 #{'0': {'0': [0.0, 0.0], '1': [0.411111056804657, 0.24999995529651642], '2': [0.6962962746620178, 0.6547614932060242], '3': [1.0, 1.0]}, '1': {'0': [0.0, 0.0], '1': [1.0, 1.0]}, '2': {'0': [0.0, 0.0], '1': [1.0, 1.0]}, '3': {'0': [0.0, 0.0], '1': [0.25555554032325745, 0.16666662693023682], '2': [0.5074074268341064, 0.601190447807312], '3': [0.7555558681488037, 0.7440477013587952], '4': [1.0, 1.0]}}
 def updateTempList(self, context):
@@ -81,9 +82,12 @@ class HISANIM_OT_ADDCURVE(bpy.types.Operator):
     bl_description = 'Add your current color profile to addn'
     bl_options = {'UNDO'}
     def execute(self, context):
+        if context.scene.get('CURVEDATA') == None:
+            bpy.types.Scene.CURVEDATA = []
         num = len(context.scene.templist)
         NEW = [f'Untitled', GetCurveMapping(), bpy.context.scene.display_settings.display_device, bpy.context.scene.view_settings.view_transform, bpy.context.scene.view_settings.look, bpy.context.scene.view_settings.exposure, bpy.context.scene.view_settings.gamma, bpy.context.scene.sequencer_colorspace_settings.name, [i for i in bpy.context.scene.view_settings.curve_mapping.black_level], [i for i in bpy.context.scene.view_settings.curve_mapping.white_level]]
         context.scene.CURVEDATA.append(NEW)
+        context.scene['CURVEDATA'] = pickle.dumps(NEW)
         del NEW
         HasUntitled = lambda x: "Untitled" in x.name
         HowMany = len(list(filter(HasUntitled, context.scene.templist)))
@@ -103,6 +107,7 @@ class HISANIM_OT_UPDATECURVE(bpy.types.Operator):
     
     def execute(self, context):
         context.scene.CURVEDATA[context.scene.templistindex] = [context.scene.CURVEDATA[context.scene.templistindex][0], GetCurveMapping(), bpy.context.scene.display_settings.display_device, bpy.context.scene.view_settings.view_transform, bpy.context.scene.view_settings.look, bpy.context.scene.view_settings.exposure, bpy.context.scene.view_settings.gamma, bpy.context.scene.sequencer_colorspace_settings.name, [i for i in bpy.context.scene.view_settings.curve_mapping.black_level], [i for i in bpy.context.scene.view_settings.curve_mapping.white_level]]
+        context.scene['CURVEDATA'] = pickle.dumps(context.scene.CURVEDATA)
         return {'FINISHED'}
     
     def invoke(self, context, event):
@@ -123,6 +128,7 @@ class HISANIM_OT_REMOVECURVE(bpy.types.Operator):
         bpy.context.scene.templist.remove(bpy.context.scene.templistindex)
         if LAST:
             context.scene.templistindex = len(context.scene.templist)-1
+        context.scene['CURVEDATA'] = pickle.dumps(context.scene.CURVEDATA)
         return {'FINISHED'}
 
 class HISANIM_OT_APPLYCURVE(bpy.types.Operator):
@@ -174,7 +180,22 @@ class HISANIM_OT_APPLYCURVE(bpy.types.Operator):
         
         
         return {'FINISHED'}
-            
+@persistent
+def OnLoad(dummy):
+    if bpy.context.scene.get('CURVEDATA') == None:
+        bpy.types.Scene.CURVEDATA = []
+    else:
+        print('LOADING')
+        bpy.types.Scene.CURVEDATA = pickle.loads(bpy.context.scene.get('CURVEDATA'))
+
+@persistent
+def OnSave(dummy):
+    print('SAVING')
+    bpy.context.scene['CURVEDATA'] = pickle.dumps(bpy.context.scene.CURVEDATA)
+
+bpy.app.handlers.save_pre.append(OnSave)
+bpy.app.handlers.load_post.append(OnLoad)
+
 classes.append(HISANIM_OT_UPDATECURVE)
 classes.append(HISANIM_OT_APPLYCURVE)
 classes.append(HISANIM_OT_ADDCURVE)
@@ -188,10 +209,11 @@ def register():
     bpy.types.Scene.templist = bpy.props.CollectionProperty(type = TempList)
     bpy.types.Scene.templistindex = bpy.props.IntProperty(name='Template Index')
     try:
-        bpy.types.Scene.CURVEDATA
+        bpy.context.scene.CURVEDATA
     except:
         bpy.types.Scene.CURVEDATA = []
-    
+    bpy.app.handlers.save_pre.append(OnSave)
+    bpy.app.handlers.load_post.append(OnLoad)
 def unregister():
     for i in classes:
         bpy.utils.unregister_class(i)
