@@ -2,7 +2,7 @@ bl_info = {
     "name" : "Curvlet",
     "description" : "Store different color combos",
     "author" : "hisanimations",
-    "version" : (1, 0),
+    "version" : (1, 1),
     "blender" : (3, 0, 0),
     "location" : "Render Properties > Color Management > Curvlet",
     "support" : "COMMUNITY",
